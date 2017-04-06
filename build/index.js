@@ -5,7 +5,9 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
 var R = require('ramda');
 var flyd = require('flyd');
 var request = require('flyd-ajax');
-flatMap = require('flyd/module/flatmap');
+var flatMap = require('flyd/module/flatmap');
+var filter = require('flyd/module/filter');
+var mergeAll = require('flyd/module/mergeall');
 
 function crud(options) {
   var any = R.merge({
@@ -39,38 +41,41 @@ function crud(options) {
     data$: flyd.stream()
   }, R.merge(any, options.delete || {}));
 
-  var _flatMap = flatMap(makeRequest(create), create.data$),
-      _flatMap2 = _slicedToArray(_flatMap, 2),
-      createOk$ = _flatMap2[0],
-      createErr$ = _flatMap2[1];
+  var _makeRequest = makeRequest(create, create.data$),
+      _makeRequest2 = _slicedToArray(_makeRequest, 2),
+      createOk$ = _makeRequest2[0],
+      createErr$ = _makeRequest2[1];
 
-  var _flatMap3 = flatMap(makeRequest(update), update.data$),
-      _flatMap4 = _slicedToArray(_flatMap3, 2),
-      updateOk$ = _flatMap4[0],
-      updateErr$ = _flatMap4[1];
+  var _makeRequest3 = makeRequest(update, update.data$),
+      _makeRequest4 = _slicedToArray(_makeRequest3, 2),
+      updateOk$ = _makeRequest4[0],
+      updateErr$ = _makeRequest4[1];
 
-  var _flatMap5 = flatMap(makeRequest(del), del.data$),
-      _flatMap6 = _slicedToArray(_flatMap5, 2),
-      deleteOk$ = _flatMap6[0],
-      deleteErr$ = _flatMap6[1];
+  var _makeRequest5 = makeRequest(del, del.data$),
+      _makeRequest6 = _slicedToArray(_makeRequest5, 2),
+      deleteOk$ = _makeRequest6[0],
+      deleteErr$ = _makeRequest6[1];
 
   // Read on read.data$, deleteOk$, updateOk$, and createOk$
 
 
-  var readOn$ = flyd.mergeAll([read.data$, deleteOk$, updateOk$, createOk$]);
+  var readOn$ = mergeAll([read.data$, deleteOk$, updateOk$, createOk$]);
   // Stream of read data for the request
   var readData$ = flyd.map(function () {
     return read.data$();
   }, readOn$);
 
-  var _flatMap7 = flatMap(makeRequest(read), readData$),
-      _flatMap8 = _slicedToArray(_flatMap7, 2),
-      readOk$ = _flatMap8[0],
-      readErr$ = _flatMap8[1];
+  var _makeRequest7 = makeRequest(read, readData$),
+      _makeRequest8 = _slicedToArray(_makeRequest7, 2),
+      readOk$ = _makeRequest8[0],
+      readErr$ = _makeRequest8[1];
 
   var data$ = flyd.merge(flyd.stream(options.default || []), flyd.map(R.prop('body'), readOk$));
 
-  var loading$ = flyd.mergeAll([flyd.map(R.always(true), create.data$), flyd.map(R.always(true), update.data$), flyd.map(R.always(true), del.data$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
+  var loading$ = mergeAll([flyd.map(R.always(true), create.data$), flyd.map(R.always(true), update.data$), flyd.map(R.always(true), del.data$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
+
+  // Make initial read on pageload
+  readOn$(true);
 
   return {
     loading$: loading$,
@@ -79,25 +84,34 @@ function crud(options) {
   };
 }
 
-var makeRequest = R.curryN(2, function (options, data) {
-  var _request;
+function makeRequest(options, data$) {
+  var req = function (data) {
+    var _console$log, _request;
 
-  var payloadKey = options.method === 'get' ? 'query' : 'send';
-  var path = typeof options.path === 'function' ? options.path(data) : options.path;
+    var payloadKey = options.method === 'get' ? 'query' : 'send';
+    var path = typeof options.path === 'function' ? options.path(data) : options.path;
+    console.log((_console$log = {
+      method: options.method
+    }, _defineProperty(_console$log, payloadKey, data), _defineProperty(_console$log, 'headers', options.headers), _defineProperty(_console$log, 'path', path), _defineProperty(_console$log, 'url', options.url), _console$log));
 
-  var resp$ = request((_request = {
-    method: options.method
-  }, _defineProperty(_request, payloadKey, data), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
-
-  var ok$ = flyd.filter(function (r) {
+    return request((_request = {
+      method: options.method
+    }, _defineProperty(_request, payloadKey, data), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
+  };
+  var resp$ = flatMap(req, data$);
+  if (options.method === 'delete') {
+    flyd.map(function (r) {
+      return console.log({ r: r });
+    }, resp$);
+  }
+  var ok$ = filter(function (r) {
     return r.status === 200;
   }, resp$);
-  var err$ = flyd.filter(function (r) {
+  var err$ = filter(function (r) {
     return r.status !== 200;
   }, resp$);
-
   return [ok$, err$];
-});
+}
 
 module.exports = crud;
 
