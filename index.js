@@ -1,6 +1,9 @@
 const R = require('ramda')
 const flyd = require('flyd')
 const request = require('flyd-ajax')
+const flatMap = require('flyd/module/flatmap')
+const filter = require('flyd/module/filter')
+const mergeAll = require('flyd/module/mergeall')
 
 function crud(options) {
   const any = R.merge({
@@ -32,32 +35,34 @@ function crud(options) {
   , data$: flyd.stream()
   }, R.merge(any, options.delete || {}))
 
-  const [createResp$, createOk$, createErr$] = flyd.flatMap(makeRequest(create), create.data$)
-  const [updateResp$, updateOk$, updateErr$] = flyd.flatMap(makeRequest(update), update.data$)
-  const [deleteResp$, deleteOk$, deleteErr$] = flyd.flatMap(makeRequest(del), del.data$)
+  const [createOk$, createErr$] = makeRequest(create, create.data$)
+  const [updateOk$, updateErr$] = makeRequest(update, update.data$)
+  const [deleteOk$, deleteErr$] = makeRequest(del, del.data$)
 
   // Read on read.data$, deleteOk$, updateOk$, and createOk$
-  const readOn$ = flyd.mergeAll([read.data$, deleteOk$, updateOk$, createOk$])
+  const readOn$ = mergeAll([read.data$, deleteOk$, updateOk$, createOk$])
   // Stream of read data for the request
   const readData$ = flyd.map(()=> read.data$(), readOn$)
-  const [readResp$, readOk$, readErr$] = flyd.flatMap(makeRequest(read), readData$)
+  const [readOk$, readErr$] = makeRequest(read, readData$)
+  
+  const data$ = flyd.merge(
+    flyd.stream(options.default || [])
+  , flyd.map(R.prop('body'), readOk$)
+  )
 
-  const loading$ = flyd.mergeAll([
+  const loading$ = mergeAll([
     flyd.map(R.always(true), create.data$)
   , flyd.map(R.always(true), update.data$)
   , flyd.map(R.always(true), del.data$)
   , flyd.map(R.always(false), createErr$)
   , flyd.map(R.always(false), updateErr$)
   , flyd.map(R.always(false), deleteErr$)
-  , flyd.map(R.always(false), readOk$)
+  , flyd.map(R.always(false), data$)
   ])
 
-  const data$ = flyd.scanMerge([
-    [createOk$, appendData]
-  , [updateOk$, updateData]
-  , [deleteOk$, deleteData]
-  ], options.default || [])
-  
+  // Make initial read on pageload
+  readOn$(true)
+
   return {
     loading$
   , data$
@@ -65,25 +70,35 @@ function crud(options) {
   }
 }
 
-const makeRequest = R.curryN(2, (options, data) => {
-  const payloadKey = options.method === 'get' ? 'query' : 'send'
-  const path = typeof options.path === 'function' ? options.path(data) : options.path
+function makeRequest(options, data$) {
+  const req = data => {
+    const payloadKey = options.method === 'get' ? 'query' : 'send'
+    const path = typeof options.path === 'function' ? options.path(data) : options.path
+    console.log({
+      method: options.method
+    , [payloadKey]: data
+    , headers: options.headers
+    , path
+    , url: options.url
+    })
 
-  return request({
-    method: options.method
-  , [payloadKey]: data
-  , headers: options.headers
-  , path
-  }).load
-})
-
-function appendData(rows, row) {
+    return request({
+      method: options.method
+    , [payloadKey]: data
+    , headers: options.headers
+    , path
+    , url: options.url
+    }).load
+  }
+  const resp$ = flatMap(req, data$)
+  if(options.method === 'delete') {
+    flyd.map(r => console.log({r}), resp$)
+  }
+  const ok$ = filter(r => r.status === 200, resp$)
+  const err$ = filter(r => r.status !== 200, resp$)
+  return [ok$, err$]
 }
 
-function updateData(rows, row) {
-}
-
-function deleteData(rows, row) {
-}
 
 module.exports = crud
+
