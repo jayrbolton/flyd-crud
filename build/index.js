@@ -26,7 +26,8 @@ function crud(options) {
   var read = R.merge({
     method: 'get',
     path: '',
-    data$: flyd.stream()
+    data$: flyd.stream(),
+    onPageload: true
   }, R.merge(any, options.read || {}));
 
   var update = R.merge({
@@ -75,7 +76,7 @@ function crud(options) {
   var loading$ = mergeAll([flyd.map(R.always(true), create.data$), flyd.map(R.always(true), update.data$), flyd.map(R.always(true), del.data$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
 
   // Make initial read on pageload
-  readOn$(true);
+  if (read.onPageload) readOn$(true);
 
   return {
     loading$: loading$,
