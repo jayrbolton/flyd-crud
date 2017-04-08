@@ -21,6 +21,7 @@ function crud(options) {
     method: 'get'
   , path: ''
   , data$: flyd.stream()
+  , onPageload: true
   }, R.merge(any, options.read || {}))
 
   const update = R.merge({
@@ -61,7 +62,7 @@ function crud(options) {
   ])
 
   // Make initial read on pageload
-  readOn$(true)
+  if(read.onPageload) readOn$(true)
 
   return {
     loading$
