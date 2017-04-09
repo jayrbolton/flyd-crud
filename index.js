@@ -21,7 +21,6 @@ function crud(options) {
     method: 'get'
   , path: ''
   , data$: flyd.stream()
-  , onPageload: true
   }, R.merge(any, options.read || {}))
 
   const update = R.merge({
@@ -45,7 +44,7 @@ function crud(options) {
   // Stream of read data for the request
   const readData$ = flyd.map(()=> read.data$(), readOn$)
   const [readOk$, readErr$] = makeRequest(read, readData$)
-  
+
   const data$ = flyd.merge(
     flyd.stream(options.default || [])
   , flyd.map(R.prop('body'), readOk$)
@@ -61,9 +60,6 @@ function crud(options) {
   , flyd.map(R.always(false), data$)
   ])
 
-  // Make initial read on pageload
-  if(read.onPageload) readOn$(true)
-
   return {
     loading$
   , data$
@@ -75,14 +71,6 @@ function makeRequest(options, data$) {
   const req = data => {
     const payloadKey = options.method === 'get' ? 'query' : 'send'
     const path = typeof options.path === 'function' ? options.path(data) : options.path
-    console.log({
-      method: options.method
-    , [payloadKey]: data
-    , headers: options.headers
-    , path
-    , url: options.url
-    })
-
     return request({
       method: options.method
     , [payloadKey]: data

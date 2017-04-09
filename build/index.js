@@ -26,8 +26,7 @@ function crud(options) {
   var read = R.merge({
     method: 'get',
     path: '',
-    data$: flyd.stream(),
-    onPageload: true
+    data$: flyd.stream()
   }, R.merge(any, options.read || {}));
 
   var update = R.merge({
@@ -75,9 +74,6 @@ function crud(options) {
 
   var loading$ = mergeAll([flyd.map(R.always(true), create.data$), flyd.map(R.always(true), update.data$), flyd.map(R.always(true), del.data$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
 
-  // Make initial read on pageload
-  if (read.onPageload) readOn$(true);
-
   return {
     loading$: loading$,
     data$: data$,
@@ -87,14 +83,10 @@ function crud(options) {
 
 function makeRequest(options, data$) {
   var req = function (data) {
-    var _console$log, _request;
+    var _request;
 
     var payloadKey = options.method === 'get' ? 'query' : 'send';
     var path = typeof options.path === 'function' ? options.path(data) : options.path;
-    console.log((_console$log = {
-      method: options.method
-    }, _defineProperty(_console$log, payloadKey, data), _defineProperty(_console$log, 'headers', options.headers), _defineProperty(_console$log, 'path', path), _defineProperty(_console$log, 'url', options.url), _console$log));
-
     return request((_request = {
       method: options.method
     }, _defineProperty(_request, payloadKey, data), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
