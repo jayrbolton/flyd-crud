@@ -13,23 +13,28 @@ const userPath = u => `/users/${u.id}`
 const users = flyd.crud({
   default: []
 , create: {
-    data$: userUpdates$
+    params$: userUpdates$
   }
 , read: {
     path: '/users'
-  , data$: userQuery$
+  , params$: userQuery$
   }
 , update: {
     method: 'put'
-  , data$: userUpdates$
+  , params$: userUpdates$
   }
 , delete: {
-    data$: deleteUser$
+    params$: deleteUser$
   }
 , any: {
     headers
   , path: userPath
   , err: formatErr
+  }
+  // Default parameters to send in any request
+  // This object will get merged with the objects from your params$ streams
+, defaultParams: {
+    userID: ENV.userID
   }
 })
 

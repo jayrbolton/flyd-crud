@@ -19,10 +19,10 @@ function init() {
   const update$ = flyd.stream()
   const delete$ = flyd.stream()
   const users = crud({
-    create: { data$: create$ }
-  , read: { data$: read$ }
-  , update: { data$: update$ , method: 'post', path: '/users/update' }
-  , delete: { data$: delete$, method: 'post', path: '/users/delete' }
+    create: { params$: create$ }
+  , read: { params$: read$ }
+  , update: { params$: update$ , method: 'post', path: '/users/update' }
+  , delete: { params$: delete$, method: 'post', path: '/users/delete' }
   , any: {
       path: '/users'
     , url: 'http://localhost:4456'
@@ -38,8 +38,11 @@ function init() {
 const {users, actions} = init()
 
 test('read on pageload', done => {
-  assert.deepEqual(users.data$(), [{name: "Initial"}])
-  done()
+  actions.read$({})
+  setTimeout(() => { // XXX
+    assert.deepEqual(users.data$(), [{name: "Initial", id: 0}])
+    done()
+  }, 1000)
 })
 
 test('pageload, create, update, delete, and read', done => {
