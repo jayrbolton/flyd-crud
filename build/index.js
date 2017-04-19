@@ -18,7 +18,7 @@ function crud(options) {
   }, options.any || {});
 
   var create = R.merge({
-    data$: flyd.stream(),
+    params$: flyd.stream(),
     method: 'post',
     path: ''
   }, R.merge(any, options.create || {}));
@@ -26,32 +26,32 @@ function crud(options) {
   var read = R.merge({
     method: 'get',
     path: '',
-    data$: flyd.stream()
+    params$: flyd.stream()
   }, R.merge(any, options.read || {}));
 
   var update = R.merge({
     method: 'patch',
     path: '',
-    data$: flyd.stream()
+    params$: flyd.stream()
   }, R.merge(any, options.update || {}));
 
   var del = R.merge({
     method: 'delete',
     path: '',
-    data$: flyd.stream()
+    params$: flyd.stream()
   }, R.merge(any, options.delete || {}));
 
-  var _makeRequest = makeRequest(create, create.data$),
+  var _makeRequest = makeRequest(create, create.params$),
       _makeRequest2 = _slicedToArray(_makeRequest, 2),
       createOk$ = _makeRequest2[0],
       createErr$ = _makeRequest2[1];
 
-  var _makeRequest3 = makeRequest(update, update.data$),
+  var _makeRequest3 = makeRequest(update, update.params$),
       _makeRequest4 = _slicedToArray(_makeRequest3, 2),
       updateOk$ = _makeRequest4[0],
       updateErr$ = _makeRequest4[1];
 
-  var _makeRequest5 = makeRequest(del, del.data$),
+  var _makeRequest5 = makeRequest(del, del.params$),
       _makeRequest6 = _slicedToArray(_makeRequest5, 2),
       deleteOk$ = _makeRequest6[0],
       deleteErr$ = _makeRequest6[1];
@@ -59,20 +59,20 @@ function crud(options) {
   // Read on read.data$, deleteOk$, updateOk$, and createOk$
 
 
-  var readOn$ = mergeAll([read.data$, deleteOk$, updateOk$, createOk$]);
+  var readOn$ = mergeAll([read.params$, deleteOk$, updateOk$, createOk$]);
   // Stream of read data for the request
-  var readData$ = flyd.map(function () {
-    return read.data$();
+  var readParams$ = flyd.map(function () {
+    return read.params$();
   }, readOn$);
 
-  var _makeRequest7 = makeRequest(read, readData$),
+  var _makeRequest7 = makeRequest(read, readParams$),
       _makeRequest8 = _slicedToArray(_makeRequest7, 2),
       readOk$ = _makeRequest8[0],
       readErr$ = _makeRequest8[1];
 
   var data$ = flyd.merge(flyd.stream(options.default || []), flyd.map(R.prop('body'), readOk$));
 
-  var loading$ = mergeAll([flyd.map(R.always(true), create.data$), flyd.map(R.always(true), update.data$), flyd.map(R.always(true), del.data$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
+  var loading$ = mergeAll([flyd.map(R.always(true), create.params$), flyd.map(R.always(true), update.params$), flyd.map(R.always(true), del.params$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
 
   return {
     loading$: loading$,
@@ -81,17 +81,18 @@ function crud(options) {
   };
 }
 
-function makeRequest(options, data$) {
-  var req = function (data) {
+function makeRequest(options, params$) {
+  var req = function (params) {
     var _request;
 
     var payloadKey = options.method === 'get' ? 'query' : 'send';
-    var path = typeof options.path === 'function' ? options.path(data) : options.path;
+    var path = typeof options.path === 'function' ? options.path(params) : options.path;
+    if (options.defaultParams) params = R.merge(options.defaultParams, params);
     return request((_request = {
       method: options.method
-    }, _defineProperty(_request, payloadKey, data), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
+    }, _defineProperty(_request, payloadKey, params), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
   };
-  var resp$ = flatMap(req, data$);
+  var resp$ = flatMap(req, params$);
   if (options.method === 'delete') {
     flyd.map(function (r) {
       return console.log({ r: r });
