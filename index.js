@@ -71,7 +71,7 @@ function makeRequest(options, params$) {
   const req = params => {
     const payloadKey = options.method === 'get' ? 'query' : 'send'
     const path = typeof options.path === 'function' ? options.path(params) : options.path
-    if(options.defaultParams) params = R.merge(options.defaultParams, params)
+    params = R.merge(options.defaultParams || {}, params || {})
     return request({
       method: options.method
     , [payloadKey]: params

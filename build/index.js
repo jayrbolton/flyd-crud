@@ -87,7 +87,7 @@ function makeRequest(options, params$) {
 
     var payloadKey = options.method === 'get' ? 'query' : 'send';
     var path = typeof options.path === 'function' ? options.path(params) : options.path;
-    if (options.defaultParams) params = R.merge(options.defaultParams, params);
+    params = R.merge(options.defaultParams || {}, params || {});
     return request((_request = {
       method: options.method
     }, _defineProperty(_request, payloadKey, params), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
