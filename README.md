@@ -30,11 +30,11 @@ const users = flyd.crud({
     headers
   , path: userPath
   , err: formatErr
-  }
-  // Default parameters to send in any request
-  // This object will get merged with the objects from your params$ streams
-, defaultParams: {
-    userID: ENV.userID
+    // Default parameters to send in any request
+    // This object will get merged with the objects from your params$ streams
+  , defaultParams: {
+      userID: ENV.userID
+    }
   }
 })
 
