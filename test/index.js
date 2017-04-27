@@ -5,8 +5,6 @@ const uuid = require('uuid')
 const request = require('flyd-ajax')
 const R = require('ramda')
 
-suite('crud')
-
 request({
   method: 'post'
 , path: '/refresh'
@@ -19,10 +17,10 @@ function init() {
   const update$ = flyd.stream()
   const delete$ = flyd.stream()
   const users = crud({
-    create: { params$: create$ }
-  , read: { params$: read$ }
-  , update: { params$: update$ , method: 'post', path: '/users/update' }
-  , delete: { params$: delete$, method: 'post', path: '/users/delete' }
+    create: { params$: create$, method: 'post', onSuccess: ['read']}
+  , read:   { params$: read$, method: 'get' }
+  , update: { params$: update$ , method: 'post', path: '/users/update', onSuccess: ['read'] }
+  , delete: { params$: delete$, method: 'post', path: '/users/delete', onSuccess: ['read'], onFail: ['read'], onStart: ['read'] }
   , any: {
       path: '/users'
     , url: 'http://localhost:4456'
@@ -38,11 +36,11 @@ function init() {
 const {users, actions} = init()
 
 test('read on pageload', done => {
-  actions.read$({})
+  actions.read$({hi: 'hi'})
   setTimeout(() => { // XXX
-    assert.deepEqual(users.data$(), [{name: "Initial", id: 0}])
+    assert.deepEqual(users.body$(), [{name: "Initial", id: 0}])
     done()
-  }, 1000)
+  }, 500)
 })
 
 test('pageload, create, update, delete, and read', done => {
@@ -57,9 +55,9 @@ test('pageload, create, update, delete, and read', done => {
   actions.delete$(userB)
 
   setTimeout(()=> {
-    const data = users.data$()
+    const data = users.body$()
     assert.deepEqual(data, [{name: 'Initial', id: 0}, userA_modified])
     done()
-  }, 1000)
+  }, 500)
 })
 

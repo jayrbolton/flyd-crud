@@ -1,111 +1,93 @@
-var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
-
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
 var R = require('ramda');
 var flyd = require('flyd');
+flyd.filter = require('flyd/module/filter');
+flyd.flatMap = require('flyd/module/flatmap');
 var request = require('flyd-ajax');
 var flatMap = require('flyd/module/flatmap');
 var filter = require('flyd/module/filter');
 var mergeAll = require('flyd/module/mergeall');
 
-function crud(options) {
-  var any = R.merge({
-    err: function (response) {
-      return String(response.body);
-    },
-    headers: {}
-  }, options.any || {});
+module.exports = function crud(options) {
+  // merge the `any` prop into each request
+  options = R.compose(R.map(function (req) {
+    return R.merge(options.any, req);
+  }), R.omit(['any']))(options);
 
-  var create = R.merge({
-    params$: flyd.stream(),
-    method: 'post',
-    path: ''
-  }, R.merge(any, options.create || {}));
+  var resultDefaults = { loading$: flyd.stream(), error$: flyd.stream(), body$: flyd.stream() };
+  // The result object gets mutated by the setupRequests function. See comments for that function for details.
+  var result = R.merge(resultDefaults, R.map(function () {
+    return resultDefaults;
+  }, options));
+  R.mapObjIndexed(function (r, name) {
+    return setupRequests(name, options, result);
+  }, options);
 
-  var read = R.merge({
-    method: 'get',
-    path: '',
-    params$: flyd.stream()
-  }, R.merge(any, options.read || {}));
+  return result;
+};
 
-  var update = R.merge({
-    method: 'patch',
-    path: '',
-    params$: flyd.stream()
-  }, R.merge(any, options.update || {}));
+// This creates the response stream and filters it into success and failure streams
+// All the logic here is managed imperatively by using flyd.on and pushing directly to streams
+// The reason for this is that the stream logic, when using onSuccess, onFail, and onStart, was super complicated and I couldn't figure out how to do it without imperative pushing.
+function setupRequests(name, options, result) {
+  console.log('make for', name);
+  var reqResult = result[name];
+  var reqOptions = options[name];
 
-  var del = R.merge({
-    method: 'delete',
-    path: '',
-    params$: flyd.stream()
-  }, R.merge(any, options.delete || {}));
-
-  var _makeRequest = makeRequest(create, create.params$),
-      _makeRequest2 = _slicedToArray(_makeRequest, 2),
-      createOk$ = _makeRequest2[0],
-      createErr$ = _makeRequest2[1];
-
-  var _makeRequest3 = makeRequest(update, update.params$),
-      _makeRequest4 = _slicedToArray(_makeRequest3, 2),
-      updateOk$ = _makeRequest4[0],
-      updateErr$ = _makeRequest4[1];
-
-  var _makeRequest5 = makeRequest(del, del.params$),
-      _makeRequest6 = _slicedToArray(_makeRequest5, 2),
-      deleteOk$ = _makeRequest6[0],
-      deleteErr$ = _makeRequest6[1];
-
-  // Read on read.data$, deleteOk$, updateOk$, and createOk$
-
-
-  var readOn$ = mergeAll([read.params$, deleteOk$, updateOk$, createOk$]);
-  // Stream of read data for the request
-  var readParams$ = flyd.map(function () {
-    return read.params$();
-  }, readOn$);
-
-  var _makeRequest7 = makeRequest(read, readParams$),
-      _makeRequest8 = _slicedToArray(_makeRequest7, 2),
-      readOk$ = _makeRequest8[0],
-      readErr$ = _makeRequest8[1];
-
-  var data$ = flyd.merge(flyd.stream(options.default || []), flyd.map(R.prop('body'), readOk$));
-
-  var loading$ = mergeAll([flyd.map(R.always(true), create.params$), flyd.map(R.always(true), update.params$), flyd.map(R.always(true), del.params$), flyd.map(R.always(false), createErr$), flyd.map(R.always(false), updateErr$), flyd.map(R.always(false), deleteErr$), flyd.map(R.always(false), data$)]);
-
-  return {
-    loading$: loading$,
-    data$: data$,
-    readErr$: readErr$, createErr$: createErr$, updateErr$: updateErr$, deleteErr$: deleteErr$
-  };
-}
-
-function makeRequest(options, params$) {
-  var req = function (params) {
+  var path = typeof reqOptions.path === 'function' ? reqOptions.path(params) : reqOptions.path;
+  var payloadKey = reqOptions.method === 'get' ? 'query' : 'send';
+  var resp$ = flyd.flatMap(function (params) {
     var _request;
 
-    var payloadKey = options.method === 'get' ? 'query' : 'send';
-    var path = typeof options.path === 'function' ? options.path(params) : options.path;
-    params = R.merge(options.defaultParams || {}, params || {});
     return request((_request = {
-      method: options.method
-    }, _defineProperty(_request, payloadKey, params), _defineProperty(_request, 'headers', options.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', options.url), _request)).load;
-  };
-  var resp$ = flatMap(req, params$);
-  if (options.method === 'delete') {
-    flyd.map(function (r) {
-      return console.log({ r: r });
-    }, resp$);
-  }
-  var ok$ = filter(function (r) {
+      method: reqOptions.method
+    }, _defineProperty(_request, payloadKey, params), _defineProperty(_request, 'headers', reqOptions.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', reqOptions.url), _request)).load;
+  }, reqOptions.params$);
+  var success$ = flyd.filter(function (r) {
     return r.status === 200;
   }, resp$);
-  var err$ = filter(function (r) {
+  var fail$ = flyd.filter(function (r) {
     return r.status !== 200;
   }, resp$);
-  return [ok$, err$];
-}
 
-module.exports = crud;
+  // Imperatively loading to true
+  flyd.on(function () {
+    result.loading$(true);reqResult.loading$(true);
+  }, reqOptions.params$);
+
+  // Imperatively loading to false
+  flyd.on(function () {
+    result.loading$(false);reqResult.loading$(false);
+  }, resp$);
+
+  // Imperatively set success and failure data
+  flyd.on(function (r) {
+    result.body$(r.body);reqResult.body$(r.body);
+  }, success$);
+  flyd.on(function (r) {
+    result.error$(r.body);reqResult.error$(r.body);
+  }, fail$);
+
+  // Imperatively push to onStart streams
+  R.map(function (n) {
+    return flyd.on(function () {
+      return options[n].params$(options[n].params$());
+    }, reqOptions.params$);
+  }, reqOptions.onStart || []);
+
+  // Imperatively push to onSuccess streams
+  R.map(function (n) {
+    return flyd.on(function () {
+      return options[n].params$(options[n].params$());
+    }, success$);
+  }, reqOptions.onSuccess || []);
+
+  // Imperatively push to onFail streams
+  R.map(function (n) {
+    return flyd.on(function () {
+      return options[n].params$(options[n].params$());
+    }, fail$);
+  }, reqOptions.onFail || []);
+}
 

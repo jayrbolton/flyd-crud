@@ -1,94 +1,89 @@
 const R = require('ramda')
 const flyd = require('flyd')
+flyd.filter = require('flyd/module/filter')
+flyd.flatMap = require('flyd/module/flatmap')
 const request = require('flyd-ajax')
 const flatMap = require('flyd/module/flatmap')
 const filter = require('flyd/module/filter')
 const mergeAll = require('flyd/module/mergeall')
 
-function crud(options) {
-  const any = R.merge({
-    err: response => String(response.body)
-  , headers: {}
-  }, options.any || {})
+module.exports = function crud (options) {
+  // merge the `any` prop into each request
+  options = R.compose(
+    R.map((req) => R.merge(options.any, req))
+  , R.omit(['any'])
+  )(options)
 
-  const create = R.merge({
-    params$: flyd.stream()
-  , method: 'post'
-  , path: ''
-  }, R.merge(any, options.create || {}))
+  const resultDefaults = {loading$: flyd.stream(), error$: flyd.stream(), body$: flyd.stream()}
+  // The result object gets mutated by the setupRequests function. See comments for that function for details.
+  var result = R.merge(resultDefaults, R.map(() => resultDefaults , options))
+  R.mapObjIndexed((r, name) => setupRequests(name, options, result), options)
 
-  const read = R.merge({
-    method: 'get'
-  , path: ''
-  , params$: flyd.stream()
-  }, R.merge(any, options.read || {}))
+  return result
+}
 
-  const update = R.merge({
-    method: 'patch'
-  , path: ''
-  , params$: flyd.stream()
-  }, R.merge(any, options.update || {}))
+// This creates the response stream and filters it into success and failure streams
+// All the logic here is managed imperatively by using flyd.on and pushing directly to streams
+// The reason for this is that the stream logic, when using onSuccess, onFail, and onStart, was super complicated and I couldn't figure out how to do it without imperative pushing.
+function setupRequests (name, options, result) {
+  console.log('make for', name)
+  const reqResult = result[name]
+  const reqOptions = options[name]
 
-  const del = R.merge({
-    method: 'delete'
-  , path: ''
-  , params$: flyd.stream()
-  }, R.merge(any, options.delete || {}))
+  const path = typeof reqOptions.path === 'function' ? reqOptions.path(params) : reqOptions.path
+  const payloadKey = reqOptions.method === 'get' ? 'query' : 'send'
+  const resp$ = flyd.flatMap(
+    (params) => request({
+      method: reqOptions.method
+    , [payloadKey]: params
+    , headers: reqOptions.headers
+    , path: path
+    , url: reqOptions.url
+    }).load
+  , reqOptions.params$
+  )
+  const success$ = flyd.filter(r => r.status === 200, resp$)
+  const fail$ = flyd.filter(r => r.status !== 200, resp$)
 
-  const [createOk$, createErr$] = makeRequest(create, create.params$)
-  const [updateOk$, updateErr$] = makeRequest(update, update.params$)
-  const [deleteOk$, deleteErr$] = makeRequest(del, del.params$)
-
-  // Read on read.data$, deleteOk$, updateOk$, and createOk$
-  const readOn$ = mergeAll([read.params$, deleteOk$, updateOk$, createOk$])
-  // Stream of read data for the request
-  const readParams$ = flyd.map(()=> read.params$(), readOn$)
-  const [readOk$, readErr$] = makeRequest(read, readParams$)
-
-  const data$ = flyd.merge(
-    flyd.stream(options.default || [])
-  , flyd.map(R.prop('body'), readOk$)
+  // Imperatively loading to true
+  flyd.on(
+    () => {result.loading$(true); reqResult.loading$(true)}
+  , reqOptions.params$
   )
 
-  const loading$ = mergeAll([
-    flyd.map(R.always(true), create.params$)
-  , flyd.map(R.always(true), update.params$)
-  , flyd.map(R.always(true), del.params$)
-  , flyd.map(R.always(false), createErr$)
-  , flyd.map(R.always(false), updateErr$)
-  , flyd.map(R.always(false), deleteErr$)
-  , flyd.map(R.always(false), data$)
-  ])
+  // Imperatively loading to false
+  flyd.on(
+    () => {result.loading$(false); reqResult.loading$(false)}
+  , resp$
+  )
 
-  return {
-    loading$
-  , data$
-  , readErr$, createErr$, updateErr$, deleteErr$
-  }
+  // Imperatively set success and failure data
+  flyd.on(
+    (r) => {result.body$(r.body); reqResult.body$(r.body)}
+  , success$
+  )
+  flyd.on(
+    (r) => {result.error$(r.body); reqResult.error$(r.body)}
+  , fail$
+  )
+
+  // Imperatively push to onStart streams
+  R.map(
+    n => flyd.on(() => options[n].params$(options[n].params$()), reqOptions.params$)
+  , reqOptions.onStart || []
+  )
+
+  // Imperatively push to onSuccess streams
+  R.map(
+    n => flyd.on(() => options[n].params$(options[n].params$()), success$)
+  , reqOptions.onSuccess || []
+  )
+
+  // Imperatively push to onFail streams
+  R.map(
+    n => flyd.on(() => options[n].params$(options[n].params$()), fail$)
+  , reqOptions.onFail || []
+  )
+
 }
-
-function makeRequest(options, params$) {
-  const req = params => {
-    const payloadKey = options.method === 'get' ? 'query' : 'send'
-    const path = typeof options.path === 'function' ? options.path(params) : options.path
-    params = R.merge(options.defaultParams || {}, params || {})
-    return request({
-      method: options.method
-    , [payloadKey]: params
-    , headers: options.headers
-    , path
-    , url: options.url
-    }).load
-  }
-  const resp$ = flatMap(req, params$)
-  if(options.method === 'delete') {
-    flyd.map(r => console.log({r}), resp$)
-  }
-  const ok$ = filter(r => r.status === 200, resp$)
-  const err$ = filter(r => r.status !== 200, resp$)
-  return [ok$, err$]
-}
-
-
-module.exports = crud
 

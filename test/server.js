@@ -32,20 +32,19 @@ function handleRequest(req, res) {
 
 dispatcher.onGet('/users', (req, res) => {
   res.writeHead(200, {'Content-Type': 'application/json'})
+  console.log('-->', JSON.stringify(users))
   res.end(JSON.stringify(users))
 })
 
 dispatcher.onPost('/users', (req, res) => {
-  const data = JSON.parse(req.body)
+  const data = parse(req.body)
   users.push(data)
   res.writeHead(200, {'Content-Type': 'application/json'})
   res.end()
 })
 
 dispatcher.onPost('/users/update', (req, res) => {
-  console.log(req.body)
-  console.log(req.params)
-  const data = JSON.parse(req.body)
+  const data = parse(req.body)
   const idx = R.findIndex(u => u.id === data.id, users)
   users = R.update(idx, data, users)
   res.writeHead(200, {'Content-Type': 'application/json'})
@@ -53,9 +52,7 @@ dispatcher.onPost('/users/update', (req, res) => {
 })
 
 dispatcher.onPost('/users/delete', (req, res) => {
-  console.log(req.body)
-  console.log(req.params)
-  const data = JSON.parse(req.body)
+  const data = parse(req.body)
   const idx = R.findIndex(u => u.id === data.id, users)
   users = R.remove(idx, 1, users)
   res.writeHead(200, {'Content-Type': 'application/json'})
@@ -63,10 +60,11 @@ dispatcher.onPost('/users/delete', (req, res) => {
 })
 
 dispatcher.onPost('/refresh', (req, res) => {
-  console.log("Refreshing!")
   users = [initialUser]
   res.end()
 })
+
+function parse(str) { try { return JSON.parse(str) } catch(e) { return {} } }
 
 server.listen(PORT, function(){
   console.log("Test server listening on: http://localhost:%s", PORT)
