@@ -30,14 +30,13 @@ function setupRequests (name, options, result) {
   const reqResult = result[name]
   const reqOptions = options[name]
 
-  const path = typeof reqOptions.path === 'function' ? reqOptions.path(params) : reqOptions.path
   const payloadKey = reqOptions.method === 'get' ? 'query' : 'send'
   const resp$ = flyd.flatMap(
     (params) => request({
       method: reqOptions.method
     , [payloadKey]: params
     , headers: reqOptions.headers
-    , path: path
+    , path: typeof reqOptions.path === 'function' ? reqOptions.path(params) : reqOptions.path
     , url: reqOptions.url
     }).load
   , reqOptions.params$
