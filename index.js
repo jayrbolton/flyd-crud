@@ -26,7 +26,6 @@ module.exports = function crud (options) {
 // All the logic here is managed imperatively by using flyd.on and pushing directly to streams
 // The reason for this is that the stream logic, when using onSuccess, onFail, and onStart, was super complicated and I couldn't figure out how to do it without imperative pushing.
 function setupRequests (name, options, result) {
-  console.log('make for', name)
   const reqResult = result[name]
   const reqOptions = options[name]
 

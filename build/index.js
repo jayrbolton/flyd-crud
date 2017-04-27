@@ -31,18 +31,16 @@ module.exports = function crud(options) {
 // All the logic here is managed imperatively by using flyd.on and pushing directly to streams
 // The reason for this is that the stream logic, when using onSuccess, onFail, and onStart, was super complicated and I couldn't figure out how to do it without imperative pushing.
 function setupRequests(name, options, result) {
-  console.log('make for', name);
   var reqResult = result[name];
   var reqOptions = options[name];
 
-  var path = typeof reqOptions.path === 'function' ? reqOptions.path(params) : reqOptions.path;
   var payloadKey = reqOptions.method === 'get' ? 'query' : 'send';
   var resp$ = flyd.flatMap(function (params) {
     var _request;
 
     return request((_request = {
       method: reqOptions.method
-    }, _defineProperty(_request, payloadKey, params), _defineProperty(_request, 'headers', reqOptions.headers), _defineProperty(_request, 'path', path), _defineProperty(_request, 'url', reqOptions.url), _request)).load;
+    }, _defineProperty(_request, payloadKey, params), _defineProperty(_request, 'headers', reqOptions.headers), _defineProperty(_request, 'path', typeof reqOptions.path === 'function' ? reqOptions.path(params) : reqOptions.path), _defineProperty(_request, 'url', reqOptions.url), _request)).load;
   }, reqOptions.params$);
   var success$ = flyd.filter(function (r) {
     return r.status === 200;
