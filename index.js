@@ -14,9 +14,9 @@ module.exports = function crud (options) {
   , R.omit(['any'])
   )(options)
 
-  const resultDefaults = {loading$: flyd.stream(), error$: flyd.stream(), body$: flyd.stream()}
+  const resultDefaults = () => ({loading$: flyd.stream(), error$: flyd.stream(), body$: flyd.stream()})
   // The result object gets mutated by the setupRequests function. See comments for that function for details.
-  var result = R.merge(resultDefaults, R.map(() => resultDefaults , options))
+  var result = R.merge(resultDefaults(), R.map(() => resultDefaults(), options))
   R.mapObjIndexed((r, name) => setupRequests(name, options, result), options)
 
   return result

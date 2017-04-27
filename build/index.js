@@ -15,10 +15,12 @@ module.exports = function crud(options) {
     return R.merge(options.any, req);
   }), R.omit(['any']))(options);
 
-  var resultDefaults = { loading$: flyd.stream(), error$: flyd.stream(), body$: flyd.stream() };
+  var resultDefaults = function () {
+    return { loading$: flyd.stream(), error$: flyd.stream(), body$: flyd.stream() };
+  };
   // The result object gets mutated by the setupRequests function. See comments for that function for details.
-  var result = R.merge(resultDefaults, R.map(function () {
-    return resultDefaults;
+  var result = R.merge(resultDefaults(), R.map(function () {
+    return resultDefaults();
   }, options));
   R.mapObjIndexed(function (r, name) {
     return setupRequests(name, options, result);
